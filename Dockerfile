@@ -1,51 +1,18 @@
 FROM debian:bookworm-slim
 
-# 设置环境变量，防止安装时出现交互式提示
-ENV DEBIAN_FRONTEND=noninteractive
-
-# 安装所有必要的编译依赖
-# 包含了 MPD 编译所必需的库：Boost、FFmpeg、systemd、yajl 等
+# 安装工具用于解压 deb 包
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    meson \
-    pkg-config \
-    git \
-    ca-certificates \
-    libmpdclient-dev \
-    libflac-dev \
-    libvorbis-dev \
-    libopus-dev \
-    libsqlite3-dev \
-    libao-dev \
-    libpulse-dev \
-    libicu-dev \
-    libsystemd-dev \
-    libboost-dev \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    zlib1g-dev \
-    libyajl-dev \
-    && apt-get clean \
+    wget binutils \
     && rm -rf /var/lib/apt/lists/*
 
-# 创建输出目录
 RUN mkdir -p /output
 
-# 编译 MPD
-# 使用 --wrap-mode=nofallback 确保它使用系统库而不是尝试下载外部依赖
-RUN git clone https://github.com/MusicPlayerDaemon/MPD.git /mpd-src && \
-    cd /mpd-src && \
-    meson setup build --buildtype=release --wrap-mode=nofallback && \
-    ninja -C build && \
-    cp build/mpd /output/mpd
+# 下载并提取 mpd 和 mpc 的 deb 包 (Debian Bookworm 源)
+# 注意：这会根据容器架构自动下载对应平台的包
+RUN apt-get update && \
+    apt-get download mpd mpc && \
+    ar x mpd_*.deb data.tar.xz && tar -xf data.tar.xz ./usr/bin/mpd && mv usr/bin/mpd /output/mpd && \
+    ar x mpc_*.deb data.tar.xz && tar -xf data.tar.xz ./usr/bin/mpc && mv usr/bin/mpc /output/mpc
 
-# 编译 MPC
-RUN git clone https://github.com/MusicPlayerDaemon/mpc.git /mpc-src && \
-    cd /mpc-src && \
-    meson setup build --buildtype=release --wrap-mode=nofallback && \
-    ninja -C build && \
-    cp build/mpc /output/mpc
-
-# 保持容器运行
-CMD ["tail", "-f", "/dev/null"]
+# 删除临时文件
+RUN rm -rf *.deb *.tar.xz usr
