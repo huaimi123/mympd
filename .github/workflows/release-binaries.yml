@@ -24,7 +24,7 @@ jobs:
 
       - name: Build bundle
         run: |
-          chmod +x scripts/build-linux-x86_64-glibc.sh
+          chmod +x scripts/*.sh
           ./scripts/build-linux-x86_64-glibc.sh
 
       - name: Upload artifact
