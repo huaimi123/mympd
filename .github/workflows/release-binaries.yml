@@ -21,11 +21,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        run: chmod +x scripts/build-native-plugin-binaries-common.sh
       - name: Build bundle
         run: |
           chmod +x scripts/build-linux-x86_64-glibc.sh
           ./scripts/build-linux-x86_64-glibc.sh
+          ./scripts/build-native-plugin-binaries-common.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -54,6 +54,7 @@ jobs:
         run: |
           chmod +x scripts/build-linux-x86_64-musl.sh
           bash ./scripts/build-linux-x86_64-musl.sh
+          bash ./scripts/build-native-plugin-binaries-common.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
