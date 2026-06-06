@@ -24,7 +24,8 @@ jobs:
 
       - name: Build bundle
         run: |
-          chmod +x scripts/*.sh
+          chmod +x scripts/build-linux-x86_64-glibc.sh
+          chmod +x scripts/build-native-plugin-binaries-common.sh
           ./scripts/build-linux-x86_64-glibc.sh
 
       - name: Upload artifact
@@ -53,6 +54,7 @@ jobs:
         shell: sh
         run: |
           chmod +x scripts/build-linux-x86_64-musl.sh
+          chmod +x scripts/build-native-plugin-binaries-common.sh
           bash ./scripts/build-linux-x86_64-musl.sh
 
       - name: Upload artifact
@@ -78,6 +80,7 @@ jobs:
       - name: Build bundle
         run: |
           chmod +x scripts/build-linux-arm64-glibc.sh
+          chmod +x scripts/build-native-plugin-binaries-common.sh
           ./scripts/build-linux-arm64-glibc.sh
 
       - name: Upload artifact
@@ -111,6 +114,7 @@ jobs:
         shell: sh
         run: |
           chmod +x scripts/build-linux-arm64-musl.sh
+          chmod +x scripts/build-native-plugin-binaries-common.sh
           bash ./scripts/build-linux-arm64-musl.sh
 
       - name: Upload artifact
@@ -136,6 +140,7 @@ jobs:
       - name: Build bundle
         run: |
           chmod +x scripts/build-linux-armv7-glibc.sh
+          chmod +x scripts/build-native-plugin-binaries-common.sh
           ./scripts/build-linux-armv7-glibc.sh
 
       - name: Upload artifact
