@@ -169,15 +169,21 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: List release assets
-        run: find release-artifacts -type f | sort
+      - name: Collect release tgz files
+        shell: bash
+        run: |
+          mkdir -p release-files
+          find release-artifacts -type f -name '*.tgz' -exec cp {} release-files/ \;
+          echo "Collected files:"
+          find release-files -maxdepth 1 -type f | sort
+          test -n "$(find release-files -maxdepth 1 -type f -name '*.tgz' -print -quit)"
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          files: release-artifacts/**/*.tgz
+          files: release-files/*.tgz
           generate_release_notes: true
           fail_on_unmatched_files: true
           overwrite_files: true
