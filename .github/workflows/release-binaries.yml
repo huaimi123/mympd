@@ -65,17 +65,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Alpine base tools
+        shell: sh
+        run: |
+          apk add --no-cache bash git
+
       - name: Verify build script revision
         shell: sh
         run: |
           git rev-parse HEAD
           grep -n -- "-Dicu=disabled" scripts/build-native-plugin-binaries-common.sh
           sed -n '342,370p' scripts/build-native-plugin-binaries-common.sh
-
-      - name: Install Alpine base tools
-        shell: sh
-        run: |
-          apk add --no-cache bash git
 
       - name: Build bundle
         shell: sh
