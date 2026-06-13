@@ -1,0 +1,346 @@
+name: MPD Binary Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  MPD_VERSION: "0.23.15"
+  MPC_VERSION: "0.45"
+
+jobs:
+  build-arm64-glibc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap qemu-user-static \
+            curl git meson ninja-build \
+            patchelf pkg-config \
+            alsa-lib-dev curl-dev expat-dev \
+            flac-dev libmad-dev mpg123-dev \
+            libogg-dev opus-dev libpipewire-dev \
+            libpulse-dev libsndfile-dev sqlite3-dev \
+            libid3tag-dev libvorbis-dev
+      
+      - name: Create ARM64 glibc chroot
+        run: |
+          sudo mkdir -p /workspace/chroots/arm64-glibc
+          sudo debootstrap --arch=arm64 bookworm /workspace/chroots/arm64-glibc http://deb.debian.org/debian
+          
+          # Copy QEMU binary
+          sudo cp /usr/bin/qemu-aarch64-static /workspace/chroots/arm64-glibc/usr/bin/
+          
+          # Configure DNS
+          echo "nameserver 8.8.8.8" | sudo tee /workspace/chroots/arm64-glibc/etc/resolv.conf
+          
+          # Mount filesystems
+          sudo mount --bind /dev /workspace/chroots/arm64-glibc/dev
+          sudo mount --bind /dev/pts /workspace/chroots/arm64-glibc/dev/pts
+          sudo mount --bind /proc /workspace/chroots/arm64-glibc/proc
+          sudo mount --bind /sys /workspace/chroots/arm64-glibc/sys
+          
+          # Install build dependencies
+          sudo chroot /workspace/chroots/arm64-glibc bash -c "
+            apt-get update
+            apt-get install -y build-essential ca-certificates curl file git meson ninja \
+              patchelf pkgconf python3 tar xz \
+              libasound-dev libcurl4-gnutls-dev libexpat-dev libflac-dev \
+              libfmt-dev libicu-dev libid3tag-dev libmad-dev libmpg123-dev \
+              libogg-dev libopus-dev libpipewire-dev libpulse-dev \
+              libsndfile-dev libsqlite3-dev libvorbis-dev
+          "
+          
+          # Umount filesystems
+          sudo umount /workspace/chroots/arm64-glibc/dev/pts || true
+          sudo umount /workspace/chroots/arm64-glibc/dev || true
+          sudo umount /workspace/chroots/arm64-glibc/proc || true
+          sudo umount /workspace/chroots/arm64-glibc/sys || true
+      
+      - name: Build MPD ARM64 glibc
+        run: |
+          cd mpd二进制构建
+          chmod +x build-linux-arm64-glibc.sh
+          sudo ./build-linux-arm64-glibc.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mpd-player-linux-arm64-glibc
+          path: mpd二进制构建/workspace/linux-arm64-glibc/archive/*.tgz
+
+  build-arm64-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl git meson ninja-build \
+            alsa-lib-dev curl-dev expat-dev \
+            flac-dev libmad-dev mpg123-dev \
+            libogg-dev opus-dev libpipewire-dev \
+            libpulse-dev libsndfile-dev sqlite3-dev \
+            libid3tag-dev libvorbis-dev
+      
+      - name: Create ARM64 musl chroot
+        run: |
+          sudo mkdir -p /workspace/chroots/arm64-musl
+          
+          # Download Alpine rootfs
+          ALPINE_VERSION="3.23.4"
+          ROOTFS_URL="https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/releases/aarch64/alpine-minirootfs-${ALPINE_VERSION}-aarch64.tar.gz"
+          curl -L -o /tmp/alpine-rootfs.tar.gz "${ROOTFS_URL}"
+          
+          # Extract rootfs
+          sudo tar -xzf /tmp/alpine-rootfs.tar.gz -C /workspace/chroots/arm64-musl
+          rm /tmp/alpine-rootfs.tar.gz
+          
+          # Copy QEMU binary
+          sudo cp /usr/bin/qemu-aarch64-static /workspace/chroots/arm64-musl/usr/bin/
+          
+          # Configure Alpine repositories
+          sudo tee /workspace/chroots/arm64-musl/etc/apk/repositories > /dev/null <<EOF
+          https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main
+          https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community
+          EOF
+          
+          # Configure DNS
+          echo "nameserver 8.8.8.8" | sudo tee /workspace/chroots/arm64-musl/etc/resolv.conf
+          
+          # Mount filesystems
+          sudo mount --bind /dev /workspace/chroots/arm64-musl/dev
+          sudo mount --bind /dev/pts /workspace/chroots/arm64-musl/dev/pts
+          sudo mount --bind /proc /workspace/chroots/arm64-musl/proc
+          sudo mount --bind /sys /workspace/chroots/arm64-musl/sys
+          
+          # Install build dependencies
+          sudo chroot /workspace/chroots/arm64-musl apk update
+          sudo chroot /workspace/chroots/arm64-musl apk add --no-cache \
+            bash build-base ca-certificates curl file git meson ninja \
+            patchelf pkgconf python3 tar xz \
+            alsa-lib-dev curl-dev expat-dev flac-dev \
+            fmt-dev icu-dev libid3tag-dev libmad-dev mpg123-dev \
+            libogg-dev opus-dev pipewire-dev pulseaudio-dev \
+            libsndfile-dev sqlite-dev libvorbis-dev
+          
+          # Umount filesystems
+          sudo umount /workspace/chroots/arm64-musl/dev/pts || true
+          sudo umount /workspace/chroots/arm64-musl/dev || true
+          sudo umount /workspace/chroots/arm64-musl/proc || true
+          sudo umount /workspace/chroots/arm64-musl/sys || true
+      
+      - name: Build MPD ARM64 musl
+        run: |
+          cd mpd二进制构建
+          chmod +x build-linux-arm64-musl.sh
+          sudo ./build-linux-arm64-musl.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mpd-player-linux-arm64-musl
+          path: mpd二进制构建/workspace/linux-arm64-musl/archive/*.tgz
+
+  build-armv7-glibc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap qemu-user-static \
+            curl git meson ninja-build \
+            patchelf pkg-config \
+            alsa-lib-dev curl-dev expat-dev \
+            flac-dev libmad-dev mpg123-dev \
+            libogg-dev opus-dev libpipewire-dev \
+            libpulse-dev libsndfile-dev sqlite3-dev \
+            libid3tag-dev libvorbis-dev
+      
+      - name: Create ARMv7 glibc chroot
+        run: |
+          sudo mkdir -p /workspace/chroots/armv7-glibc
+          sudo debootstrap --arch=armhf bookworm /workspace/chroots/armv7-glibc http://deb.debian.org/debian
+          
+          # Copy QEMU binary
+          sudo cp /usr/bin/qemu-arm-static /workspace/chroots/armv7-glibc/usr/bin/
+          
+          # Configure DNS
+          echo "nameserver 8.8.8.8" | sudo tee /workspace/chroots/armv7-glibc/etc/resolv.conf
+          
+          # Mount filesystems
+          sudo mount --bind /dev /workspace/chroots/armv7-glibc/dev
+          sudo mount --bind /dev/pts /workspace/chroots/armv7-glibc/dev/pts
+          sudo mount --bind /proc /workspace/chroots/armv7-glibc/proc
+          sudo mount --bind /sys /workspace/chroots/armv7-glibc/sys
+          
+          # Install build dependencies
+          sudo chroot /workspace/chroots/armv7-glibc bash -c "
+            apt-get update
+            apt-get install -y build-essential ca-certificates curl file git meson ninja \
+              patchelf pkgconf python3 tar xz \
+              libasound-dev libcurl4-gnutls-dev libexpat-dev libflac-dev \
+              libfmt-dev libicu-dev libid3tag-dev libmad-dev libmpg123-dev \
+              libogg-dev libopus-dev libpipewire-dev libpulse-dev \
+              libsndfile-dev libsqlite3-dev libvorbis-dev
+          "
+          
+          # Umount filesystems
+          sudo umount /workspace/chroots/armv7-glibc/dev/pts || true
+          sudo umount /workspace/chroots/armv7-glibc/dev || true
+          sudo umount /workspace/chroots/armv7-glibc/proc || true
+          sudo umount /workspace/chroots/armv7-glibc/sys || true
+      
+      - name: Build MPD ARMv7 glibc
+        run: |
+          cd mpd二进制构建
+          chmod +x build-linux-armv7-glibc.sh
+          sudo ./build-linux-armv7-glibc.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mpd-player-linux-armv7-glibc
+          path: mpd二进制构建/workspace/linux-armv7-glibc/archive/*.tgz
+
+  build-x86_64-glibc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl git meson ninja-build \
+            patchelf pkg-config \
+            libasound-dev libcurl4-gnutls-dev libexpat-dev libflac-dev \
+            libfmt-dev libicu-dev libid3tag-dev libmad-dev libmpg123-dev \
+            libogg-dev libopus-dev libpipewire-dev libpulse-dev \
+            libsndfile-dev libsqlite3-dev libvorbis-dev
+      
+      - name: Build MPD x86_64 glibc
+        run: |
+          cd mpd二进制构建
+          chmod +x build-linux-x86_64-glibc.sh
+          ./build-linux-x86_64-glibc.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mpd-player-linux-x86_64-glibc
+          path: mpd二进制构建/workspace/linux-x86_64-glibc/archive/*.tgz
+
+  build-x86_64-musl:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            build-base ca-certificates curl file git meson ninja \
+            patchelf pkgconf python3 tar xz \
+            alsa-lib-dev curl-dev expat-dev flac-dev \
+            fmt-dev icu-dev libid3tag-dev libmad-dev mpg123-dev \
+            libogg-dev opus-dev pipewire-dev pulseaudio-dev \
+            libsndfile-dev sqlite-dev libvorbis-dev
+      
+      - name: Build MPD x86_64 musl
+        run: |
+          cd mpd二进制构建
+          chmod +x build-linux-x86_64-musl.sh
+          # Create minimal chroot environment
+          mkdir -p /workspace/chroots/x86_64-musl
+          cp -a /bin /lib /usr /workspace/chroots/x86_64-musl/
+          
+          # Copy scripts
+          cp build-linux-x86_64-musl.sh /workspace/chroots/x86_64-musl/
+          
+          # Execute build in Alpine environment
+          ./build-linux-x86_64-musl.sh
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mpd-player-linux-x86_64-musl
+          path: mpd二进制构建/workspace/linux-x86_64-musl/archive/*.tgz
+
+  create-release:
+    needs: [build-arm64-glibc, build-arm64-musl, build-armv7-glibc, build-x86_64-glibc, build-x86_64-musl]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.MPD_VERSION }}
+          name: MPD Player Binaries v${{ env.MPD_VERSION }}
+          body: |
+            MPD Player 预编译二进制文件
+            
+            ## 构建信息
+            - MPD 版本: ${{ env.MPD_VERSION }}
+            - MPC 版本: ${{ env.MPC_VERSION }}
+            - 构建时间: ${{ github.event.head_commit.timestamp }}
+            
+            ## 文件说明
+            - `mpd-player-linux-arm64-glibc.tgz` - ARM64 架构，glibc 运行时
+            - `mpd-player-linux-arm64-musl.tgz` - ARM64 架构，musl 运行时（Alpine Linux）
+            - `mpd-player-linux-armv7-glibc.tgz` - ARMv7 架构，glibc 运行时
+            - `mpd-player-linux-x86_64-glibc.tgz` - x86_64 架构，glibc 运行时
+            - `mpd-player-linux-x86_64-musl.tgz` - x86_64 架构，musl 运行时
+            
+            ## 使用方法
+            下载对应的平台压缩包，解压后直接运行：
+            ```bash
+            tar -xzf mpd-player-linux-*.tgz
+            ./mpd    # 启动 MPD 服务
+            ./mpc    # 运行 MPC 客户端
+            ```
+            
+            ## 注意事项
+            - 每个 tar.gz 文件包含完整的运行环境和依赖库
+            - 解压后所有文件都在当前目录，无需额外安装
+            - 确保选择与目标系统匹配的架构和运行时版本
+            
+          files: |
+            artifacts/mpd-player-linux-arm64-glibc/*.tgz
+            artifacts/mpd-player-linux-arm64-musl/*.tgz
+            artifacts/mpd-player-linux-armv7-glibc/*.tgz
+            artifacts/mpd-player-linux-x86_64-glibc/*.tgz
+            artifacts/mpd-player-linux-x86_64-musl/*.tgz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
