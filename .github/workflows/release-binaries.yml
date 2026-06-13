@@ -32,7 +32,13 @@ jobs:
             libogg-dev opus-dev libpipewire-dev \
             libpulse-dev libsndfile-dev sqlite3-dev \
             libid3tag-dev libvorbis-dev
-      
+
+      - name: 加权限
+        run: |
+          chmod +x ./scripts/*.sh
+          ./scripts/build-all.sh
+        
+        
       - name: Create ARM64 glibc chroot
         run: |
           sudo mkdir -p /workspace/chroots/arm64-glibc
