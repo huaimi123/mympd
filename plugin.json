@@ -1,0 +1,25 @@
+{
+  "name": "知音",
+  "version": "1.4.87",
+  "description": "MPD音箱播放声音聚合助手。",
+  "author": "",
+  "license": "Apache-2.0",
+  "icon": "icon.svg",
+  "entryPath": "zhiyin",
+  "main": "main.js",
+  "minHostVersion": "2.11.0",
+  "permissions": [
+    "storage",
+    "net",
+    "inter-plugin",
+    "songs.read",
+    "songs.write",
+    "playlists.read",
+    "jsenv",
+    "command"
+  ],
+  "updateUrl": "https://raw.githubusercontent.com/huaimi123/mympd/main/plugin.json",
+  "download_url": "https://github.com/huaimi123/mympd/releases/download/v1.0.1/zhiyin.jsplugin.zip",
+  "entryHash": "",
+  "zipHash": ""
+}
